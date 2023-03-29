@@ -1,17 +1,20 @@
 from telethon import TelegramClient, events
 import requests
 import json
+import base64
 
 url = "https://ocr.captchaai.com/solve.php"
+encoded_string = ''
+image_name = 'data:image/jpeg;base64,' + encoded_string
 
-payload = {'key': '07d69d230e008d713d077d6831d72bef',
-           'numeric': '4',
-           'json': '1',
-           'calc': '0'}
+
+i = 0
+
+filename = './12' + str(i) + '.jpg'
+
 files = [
-    ('file', ('file', open('./12.jpg', 'rb'), 'application/octet-stream'))
+    ('file', ('file', open(filename, 'rb'), 'application/octet-stream'))
 ]
-headers = {}
 
 # api_id and api_hash from https://my.telegram.org/apps
 api_id = 10495395
@@ -43,13 +46,31 @@ async def handler(event):
 
 @client.on(events.NewMessage())
 async def handler(event):
-    if event.media:
-        await client.download_media(event.message, file="./12.jpg")
-        postresponse = requests.request(
-            "POST", url, headers=headers, data=payload, files=files)
-        print(postresponse.text)
-        json_dict = json.loads(postresponse.text)
-        await client.send_message(event.chat_id, json_dict['request'])
+    global i
+    global encoded_string
+    global payload
+    global filename
+    global image_name
 
+    if event.media:
+
+        await client.download_media(event.message, file=filename)
+        with open(filename, "rb") as image_file:
+            encoded_string = base64.b64encode(
+                image_file.read()).decode('utf-8')
+        image_name = 'data:image/jpeg;base64,' + encoded_string
+        payload = {'key': '07d69d230e008d713d077d6831d72bef',
+                   'json': '0',
+                   'calc': '0',
+                   'method': 'base64',
+                   'body': image_name, }
+        postresponse = requests.request(
+            "POST", url, data=payload)
+        print(postresponse.text)
+        captcha_solve = postresponse.text.replace(postresponse.text[:3], "", 1)
+        print(captcha_solve)
+        await client.send_message(event.chat_id, captcha_solve)
+
+        i += 1
 
 client.run_until_disconnected()
